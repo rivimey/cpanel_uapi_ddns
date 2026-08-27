@@ -1,0 +1,60 @@
+# cp_dns configuration and credentials.
+#
+# Copy this to one of the locations cp_dns searches, and fill it in:
+#
+#     sudo cp cp_dns_token.example /usr/local/etc/cp_dns_token
+#     sudo chmod 600 /usr/local/etc/cp_dns_token
+#     sudo $EDITOR /usr/local/etc/cp_dns_token
+#
+# Search order (first file found wins):
+#     the file named by --config
+#     the file named by $CP_DNS_TOKEN_FILE
+#     /usr/local/etc/cp_dns_token
+#     /etc/cp_dns_token
+#     ~/.cp_dns_token
+#
+# System locations are searched first on purpose. A credentials file hidden
+# in a home directory is easy to forget, and whoever inherits this system
+# will not think to look there.
+#
+# NEVER commit the filled-in version to version control.
+
+# ---------------------------------------------------------------- required
+
+# Your cPanel account username. This is usually NOT the email address you
+# log in to your host's client area with; it is the short name shown in
+# cPanel under "General Information".
+CP_USER=your_cpanel_username
+
+# The API token. Create it in cPanel:
+#     Security > Manage API Tokens > Create
+# Give it a name, and set an expiry date (recommended - record it below).
+# The token is displayed ONCE, when created. Copy it immediately.
+CP_TOKEN=the_token_from_cpanel
+
+# The DNS zone to operate on.
+ZONE=example.org
+
+# The cPanel host to talk to. Often cpanel.<your domain>, but check with
+# your host; some use a shared hostname such as server123.host.example.
+CP_HOST=cpanel.example.org
+
+# ---------------------------------------------------------------- optional
+
+# cPanel's secure port. 2083 is the default and rarely needs changing.
+#CP_PORT=2083
+
+# TTL applied to records when they are written. A short TTL means address
+# changes propagate quickly, which is what you want for dynamic DNS.
+#TTL=300
+
+# --- documentation only: the scripts never authenticate with these -------
+
+# The name you gave the token in cPanel, so that whoever comes after you
+# can find it in the list and renew it.
+CP_TOKEN_NAME=DDNS_Update
+
+# The expiry date you set, as YYYY-MM-DD. cp_dns warns when this is within
+# 30 days, and warns loudly once it has passed - an expired token means
+# DNS updates stop silently, which is the worst way for this to fail.
+CP_EXPIRY=2027-01-31

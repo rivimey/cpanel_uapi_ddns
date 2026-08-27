@@ -1,0 +1,14 @@
+# Never commit real credentials
+.cp_dns_token
+cp_dns_token
+*.token
+
+# Runtime state and logs
+.ddns_state.json
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
