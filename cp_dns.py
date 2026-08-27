@@ -107,7 +107,7 @@ def load_creds(token_file):
     example placeholder' — because the resulting auth failure otherwise
     looks identical and sends people hunting in the wrong place.
     """
-    mode = os.stat(token_file).st_mode & 0o077
+    mode = os.stat(token_file).st_mode & 0o007
     if mode:
         print("cp_dns: warning: %s is readable by others; chmod 600 it"
               % token_file, file=sys.stderr)

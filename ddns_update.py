@@ -195,6 +195,8 @@ def load_state():
 
 
 def save_state(state):
+    if DRY_RUN:
+        return
     try:
         tmp = STATE_FILE + ".tmp"
         with open(tmp, "w") as fh:
