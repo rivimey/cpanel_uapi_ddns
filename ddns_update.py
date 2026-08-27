@@ -94,6 +94,10 @@ ALERT_AFTER = 3
 # DSM notification helper (present on Synology; ignored elsewhere).
 SYNODSMNOTIFY = "/usr/syno/bin/synodsmnotify"
 
+# Title passed to synodsmnotify. It will not accept arbitrary text, so this
+# must be a mail string key DSM already knows. Override if your DSM differs.
+NOTIFY_TITLE_KEY = os.environ.get("DDNS_NOTIFY_KEY", "info")
+
 IPV4_RE = re.compile(r"^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$")
 
 
@@ -132,12 +136,13 @@ def log_path():
 
 LOG_FILE = None      # resolved at startup
 STATE_FILE = None    # resolved at startup
+DRY_RUN = False      # resolved at startup
 
 
 def log(msg):
     line = "%s %s" % (time.strftime("%Y-%m-%d %H:%M:%S"), msg)
     print(line)
-    if not LOG_FILE:
+    if DRY_RUN or not LOG_FILE:
         return
     try:
         with open(LOG_FILE, "a") as fh:
@@ -146,16 +151,56 @@ def log(msg):
         pass
 
 
+def say(msg):
+    """Tell a human what happened, but say nothing to a scheduler.
+
+    Routine "nothing has changed" runs happen every few minutes, forever.
+    Logging them would bury the entries that matter, and printing them would
+    make a scheduler mail out thousands of pointless notices. But when
+    someone runs this by hand, silence is merely confusing - so speak only
+    when stdout is a terminal.
+    """
+    if sys.stdout.isatty():
+        print(msg)
+
+
+def human_duration(seconds):
+    """Render a rough interval: '18h 42m', '9m', '3d 4h'."""
+    seconds = max(0, int(seconds))
+    days, rem = divmod(seconds, 86400)
+    hours, rem = divmod(rem, 3600)
+    mins = rem // 60
+    if days:
+        return "%dd %dh" % (days, hours)
+    if hours:
+        return "%dh %02dm" % (hours, mins)
+    return "%dm" % mins
+
+
 def notify(title, msg):
-    """Raise a DSM desktop/email notification, if we're on a Synology."""
+    """Raise a DSM notification, if we are on a Synology and it will take one.
+
+    synodsmnotify only accepts registered mail-string keys or i18n format
+    identifiers as the title; an arbitrary string is refused with
+    "is neither mail string key nor i18n format". There is no supported way
+    to register a new key from a script, so the title and the message are
+    combined into the message body and a known-good key is used for the
+    title. If that still fails, the text has already gone to the log, and
+    Task Scheduler's own "send run details by email" remains as a backstop.
+    """
+    log("NOTIFY: %s — %s" % (title, msg))
     if not os.path.exists(SYNODSMNOTIFY):
-        log("NOTIFY (no synodsmnotify): %s — %s" % (title, msg))
         return
     try:
-        subprocess.run([SYNODSMNOTIFY, "@administrators", title, msg],
-                       timeout=30, check=False)
+        proc = subprocess.run(
+            [SYNODSMNOTIFY, "@administrators", NOTIFY_TITLE_KEY,
+             "%s: %s" % (title, msg)],
+            timeout=30, capture_output=True, text=True)
+        err = (proc.stderr or "").strip()
+        if err:
+            log("  (DSM notification refused: %s)" % err)
     except Exception as exc:                              # noqa: BLE001
-        log("notification failed: %s" % exc)
+        log("  (notification failed: %s)" % exc)
 
 
 def valid_ip(text):
@@ -195,6 +240,8 @@ def load_state():
 
 
 def save_state(state):
+    # --dry-run must leave no trace: writing the cache here would change how
+    # the NEXT real run behaves, which defeats the point of a dry run.
     if DRY_RUN:
         return
     try:
@@ -241,9 +288,10 @@ def main():
         ap.error("a record name is required, e.g. 'cloud' "
                  "(or set $DDNS_RECORD)")
 
-    global LOG_FILE, STATE_FILE
+    global LOG_FILE, STATE_FILE, DRY_RUN
     STATE_FILE = state_path(record)
     LOG_FILE = log_path()
+    DRY_RUN = args.dry_run
 
     state = load_state()
 
@@ -296,6 +344,10 @@ def main():
 
     # ---- the common case: nothing has changed ----------------------------
     if observed == cached_ip:
+        next_recon = (state.get("last_reconcile", 0)
+                      + RECONCILE_HOURS * 3600) - time.time()
+        say("no change: %s is %s (next DNS check in %s)"
+            % (record, observed, human_duration(next_recon)))
         state["last_check"] = int(time.time())
         save_state(state)
         return 0
@@ -331,7 +383,7 @@ def main():
 
     # ---- both agree: update DNS ------------------------------------------
     if args.dry_run:
-        log("DRY RUN: would set %s to %s (was %s)"
+        log("DRY RUN: would set %s to %s (was %s); nothing written"
             % (record, observed, cached_ip))
         return 0
 
@@ -356,3 +408,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
