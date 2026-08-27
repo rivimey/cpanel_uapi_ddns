@@ -138,6 +138,16 @@ service writing nonsense into your zone.
 cPanel regardless of the cache, so a hand edit or a silently failed write
 cannot leave the cached state permanently out of step with reality.
 
+**Say nothing when nothing happened.** A routine run writes no log entry and
+prints nothing, so a scheduler has no output to mail out. Run by hand from a
+terminal, it does report — `no change: cloud is 192.0.2.1 (next DNS check in
+18h 42m)` — because silence is confusing when you are watching. The
+distinction is simply whether stdout is a terminal.
+
+**`--dry-run` writes nothing at all**, including the cache. A dry run that
+updated the cached address would change how the next real run behaves, which
+rather defeats the purpose.
+
 ## Configuration
 
 Settings are read from the credentials file, and may be overridden by
